@@ -4,6 +4,8 @@ from app.core.config import settings
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
+from app.models.image import FoodImage
+
 from alembic import context
 
 from app.db.database import Base

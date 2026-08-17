@@ -7,10 +7,13 @@ from app.models.pantry_item import PantryItem
 from app.api.pantry import router as pantry_router
 from app.api.auth import router as auth_router
 
+from app.api.images import router as image_router
+
 
 app = FastAPI(title="PantryPilot API")
 app.include_router(auth_router)
 app.include_router(pantry_router)
+app.include_router(image_router)
 
 
 @app.get("/health")
