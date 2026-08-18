@@ -30,6 +30,11 @@ class FoodImage(Base):
         nullable=False,
     )
 
+    content_type = Column(
+        String,
+        nullable=False,
+    )
+
     status = Column(
         String,
         nullable=False,

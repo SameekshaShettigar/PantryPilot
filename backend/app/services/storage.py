@@ -32,3 +32,18 @@ def upload_image(
         length=len(file_data),
         content_type=content_type,
     )
+    
+def download_image(
+    object_name: str,
+) -> bytes:
+
+    response = client.get_object(
+        BUCKET_NAME,
+        object_name,
+    )
+
+    try:
+        return response.read()
+    finally:
+        response.close()
+        response.release_conn()

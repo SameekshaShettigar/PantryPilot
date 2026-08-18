@@ -6,7 +6,7 @@ from pwdlib import PasswordHash
 
 password_hash = PasswordHash.recommended()
 
-SECRET_KEY = "temporary-secret-key"
+SECRET_KEY = "temporary-secret-key-change-in-production-32bytes"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

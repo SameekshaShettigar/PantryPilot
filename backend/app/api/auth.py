@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from app.core.auth import get_current_user
 
 from app.core.security import (
     create_access_token,
@@ -9,11 +9,7 @@ from app.core.security import (
 )
 from app.db.dependencies import get_db
 from app.models.user import User
-from app.schemas.auth import (
-    TokenResponse,
-    UserLogin,
-    UserRegister,
-)
+from app.schemas.auth import UserRegister, TokenResponse
 
 
 router = APIRouter(
@@ -21,17 +17,7 @@ router = APIRouter(
     tags=["Authentication"],
 )
 
-@router.get("/me")
-def get_me(
-    current_user: User = Depends(get_current_user),
-):
-    return {
-        "id": current_user.id,
-        "username": current_user.username,
-        "email": current_user.email,
-    }
-    
-    
+
 @router.post(
     "/register",
     status_code=status.HTTP_201_CREATED,
@@ -51,7 +37,9 @@ def register_user(
             detail="Username or email already exists",
         )
 
-    hashed_password = hash_password(user_data.password)
+    hashed_password = hash_password(
+        user_data.password
+    )
 
     user = User(
         username=user_data.username,
@@ -75,15 +63,16 @@ def register_user(
     response_model=TokenResponse,
 )
 def login_user(
-    user_data: UserLogin,
+    form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
     user = db.query(User).filter(
-        User.email == user_data.email
+        (User.username == form_data.username)
+        | (User.email == form_data.username)
     ).first()
 
     if user is None or not verify_password(
-        user_data.password,
+        form_data.password,
         user.password_hash,
     ):
         raise HTTPException(
@@ -91,7 +80,9 @@ def login_user(
             detail="Invalid email or password",
         )
 
-    access_token = create_access_token(user.id)
+    access_token = create_access_token(
+        user.id
+    )
 
     return {
         "access_token": access_token,
