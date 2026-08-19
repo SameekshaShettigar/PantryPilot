@@ -40,6 +40,32 @@ def create_pantry_item(
     return db_item
 
 
+@router.post(
+    "/batch",
+    response_model=list[PantryItemResponse],
+    status_code=status.HTTP_201_CREATED,
+)
+def create_pantry_items_batch(
+    items: list[PantryItemCreate],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    db_items = []
+    for item in items:
+        db_item = PantryItem(
+            **item.model_dump(),
+            user_id=current_user.id,
+        )
+        db.add(db_item)
+        db_items.append(db_item)
+
+    db.commit()
+    for db_item in db_items:
+        db.refresh(db_item)
+
+    return db_items
+
+
 
 @router.get(
     "",
