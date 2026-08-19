@@ -1,8 +1,10 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 
 const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -12,38 +14,51 @@ const Navbar = () => {
 
   if (!isAuthenticated) return null;
 
+  const themeIcon = theme === "dark" ? "🌙 Dark" : theme === "light" ? "☀️ Light" : "🌿 Emerald";
+
   return (
     <header className="navbar">
       <div className="nav-content">
-        <Link to="/dashboard" className="brand">
+        <Link to="/dashboard" className="brand" data-magnetic>
           <span className="brand-icon">🥗</span>
           <span>PantryPilot</span>
         </Link>
 
         <nav className="nav-links">
-          <NavLink to="/dashboard" className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
+          <NavLink to="/dashboard" data-magnetic className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
             Dashboard
           </NavLink>
-          <NavLink to="/pantry" className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
+          <NavLink to="/pantry" data-magnetic className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
             Pantry
           </NavLink>
-          <NavLink to="/recipes" className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
+          <NavLink to="/recipes" data-magnetic className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
             Recipes
           </NavLink>
-          <NavLink to="/shopping-list" className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
+          <NavLink to="/shopping-list" data-magnetic className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
             Shopping List
           </NavLink>
-          <NavLink to="/upload" className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
+          <NavLink to="/upload" data-magnetic className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
             📷 Scan Fridge
           </NavLink>
         </nav>
 
         <div className="nav-user">
-          <div className="user-badge">
+          {/* Theme Switcher Button */}
+          <button
+            onClick={toggleTheme}
+            data-magnetic
+            className="theme-toggle-btn"
+            title="Toggle theme (Dark / Light / Emerald)"
+          >
+            <span>{themeIcon}</span>
+          </button>
+
+          <div className="user-badge" data-magnetic>
             <span>👤</span>
             <span>{user?.username || "Sameeksha"}</span>
           </div>
-          <button onClick={handleLogout} className="btn btn-secondary btn-sm" title="Log out">
+
+          <button onClick={handleLogout} data-magnetic className="btn btn-secondary btn-sm" title="Log out">
             Logout
           </button>
         </div>
