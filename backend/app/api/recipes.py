@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -5,7 +6,7 @@ from app.core.auth import get_current_user
 from app.db.dependencies import get_db
 from app.db.seed_recipes import seed_recipes_if_empty
 from app.models.pantry_item import PantryItem
-from app.models.recipe import Recipe, RecipeIngredient
+from app.models.recipe import Recipe
 from app.models.user import User
 from app.schemas.recipe import (
     GeneratedRecipe,
@@ -14,7 +15,9 @@ from app.schemas.recipe import (
 )
 from app.services.recipe_engine import rank_recipes_for_pantry
 from app.services.recipe_generation_service import generate_recipe_from_pantry
+from app.services.redis_service import get_cache, set_cache
 
+logger = logging.getLogger("pantrypilot.recipes")
 
 router = APIRouter(
     prefix="/recipes",
@@ -52,19 +55,36 @@ def recommend_recipes(
 ):
     seed_recipes_if_empty(db)
 
-    # 1. Fetch current user's active pantry items
+    # User-specific cache key to ensure user data isolation
+    cache_key = f"user:{current_user.id}:recommendations"
+
+    # 1. Check Redis Cache (Cache-Aside Pattern)
+    cached_recommendations = get_cache(cache_key)
+
+    if cached_recommendations is not None:
+        print(f"[CACHE HIT] Recommendations retrieved from Redis for user {current_user.id}")
+        logger.info(f"[CACHE HIT] Recommendations retrieved from Redis for user {current_user.id}")
+        # Convert cached dicts back into Pydantic models matching response schema
+        return [RecipeRecommendation.model_validate(item) for item in cached_recommendations]
+
+    # 2. Cache Miss: Query PostgreSQL & calculate fresh recommendations
+    print(f"[CACHE MISS] Calculating fresh recommendations from PostgreSQL for user {current_user.id}")
+    logger.info(f"[CACHE MISS] Calculating fresh recommendations from PostgreSQL for user {current_user.id}")
+
     pantry_items = db.query(PantryItem).filter(
         PantryItem.user_id == current_user.id
     ).all()
 
-    # 2. Fetch all available catalog recipes
     recipes = db.query(Recipe).all()
 
-    # 3. Calculate match percentage, missing ingredients, and expiring bonuses
     ranked_recommendations = rank_recipes_for_pantry(
         recipes=recipes,
         pantry_items=pantry_items,
     )
+
+    # 3. Store calculated recommendations in Redis with a 5-minute (300s) TTL
+    serializable_data = [rec.model_dump(mode="json") for rec in ranked_recommendations]
+    set_cache(key=cache_key, value=serializable_data, expiration=300)
 
     return ranked_recommendations
 

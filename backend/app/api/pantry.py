@@ -1,21 +1,32 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.auth import get_current_user
-from app.models.user import User
 
+from app.core.auth import get_current_user
 from app.db.dependencies import get_db
 from app.models.pantry_item import PantryItem
+from app.models.user import User
 from app.schemas.pantry import (
     PantryItemCreate,
     PantryItemResponse,
     PantryItemUpdate,
 )
+from app.services.redis_service import delete_cache
 
+logger = logging.getLogger("pantrypilot.pantry")
 
 router = APIRouter(
     prefix="/pantry",
     tags=["Pantry"]
 )
+
+
+def invalidate_user_recommendation_cache(user_id: int):
+    cache_key = f"user:{user_id}:recommendations"
+    delete_cache(cache_key)
+    print(f"[CACHE INVALIDATED] Recommendation cache cleared for user {user_id}")
+    logger.info(f"[CACHE INVALIDATED] Recommendation cache cleared for user {user_id}")
+
 
 @router.post(
     "",
@@ -30,12 +41,14 @@ def create_pantry_item(
     db_item = PantryItem(
         **item.model_dump(),
         user_id=current_user.id,
-
     )
 
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
+
+    # Invalidate Redis recommendation cache on pantry change
+    invalidate_user_recommendation_cache(current_user.id)
 
     return db_item
 
@@ -63,8 +76,10 @@ def create_pantry_items_batch(
     for db_item in db_items:
         db.refresh(db_item)
 
-    return db_items
+    # Invalidate Redis recommendation cache on batch pantry change
+    invalidate_user_recommendation_cache(current_user.id)
 
+    return db_items
 
 
 @router.get(
@@ -78,7 +93,6 @@ def get_pantry_items(
     return db.query(PantryItem).filter(
         PantryItem.user_id == current_user.id
     ).all()
-
 
 
 @router.get(
@@ -102,7 +116,6 @@ def get_pantry_item(
         )
 
     return item
-
 
 
 @router.patch(
@@ -136,8 +149,10 @@ def update_pantry_item(
     db.commit()
     db.refresh(item)
 
-    return item
+    # Invalidate Redis recommendation cache on pantry update
+    invalidate_user_recommendation_cache(current_user.id)
 
+    return item
 
 
 @router.delete(
@@ -162,3 +177,6 @@ def delete_pantry_item(
 
     db.delete(item)
     db.commit()
+
+    # Invalidate Redis recommendation cache on pantry deletion
+    invalidate_user_recommendation_cache(current_user.id)
