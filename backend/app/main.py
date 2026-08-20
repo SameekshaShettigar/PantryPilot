@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
 from app.api.images import router as image_router
+from app.api.notifications import router as notifications_router
 from app.api.pantry import router as pantry_router
 from app.api.recipes import router as recipe_router
 from app.api.shopping_list import router as shopping_list_router
@@ -24,6 +25,7 @@ app.include_router(pantry_router)
 app.include_router(image_router)
 app.include_router(recipe_router)
 app.include_router(shopping_list_router)
+app.include_router(notifications_router)
 
 
 @app.get("/health")
