@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.agent import router as agent_router
 from app.api.auth import router as auth_router
 from app.api.images import router as image_router
 from app.api.notifications import router as notifications_router
@@ -26,6 +27,7 @@ app.include_router(image_router)
 app.include_router(recipe_router)
 app.include_router(shopping_list_router)
 app.include_router(notifications_router)
+app.include_router(agent_router)
 
 
 @app.get("/health")

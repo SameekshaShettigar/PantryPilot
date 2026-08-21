@@ -87,6 +87,9 @@ const Navbar = () => {
           <NavLink to="/shopping-list" data-magnetic className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
             Shopping List
           </NavLink>
+          <NavLink to="/agent" data-magnetic className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
+            🤖 AI Agent
+          </NavLink>
           <NavLink to="/upload" data-magnetic className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
             📷 Scan Fridge
           </NavLink>

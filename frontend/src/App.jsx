@@ -5,6 +5,7 @@ import { MagneticCursor } from "./components/ui/MagneticCursor";
 import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 
+import AIChat from "./pages/AIChat";
 import Dashboard from "./pages/Dashboard";
 import ImageUpload from "./pages/ImageUpload";
 import Login from "./pages/Login";
@@ -66,6 +67,14 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <ShoppingList />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/agent"
+                    element={
+                      <ProtectedRoute>
+                        <AIChat />
                       </ProtectedRoute>
                     }
                   />
