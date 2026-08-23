@@ -1,6 +1,8 @@
 from datetime import date, datetime, timedelta
+import json
 import logging
 from celery import Celery
+import redis
 
 from app.core.config import settings
 from app.db.database import SessionLocal
@@ -8,6 +10,9 @@ from app.models.notification import Notification
 from app.models.pantry_item import PantryItem
 
 logger = logging.getLogger("pantrypilot.worker")
+
+# Initialize Redis sync client for Pub/Sub publishing from Celery worker
+redis_sync_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 # Initialize Celery app
 celery_app = Celery(
@@ -38,6 +43,7 @@ def check_expiring_items():
     1. Periodically queries PostgreSQL for pantry items expiring in <= 3 days.
     2. Enforces idempotency (duplicate prevention) to avoid spamming the user.
     3. Creates persistent Notification records in PostgreSQL.
+    4. Publishes real-time notification to Redis Pub/Sub channel 'pantrypilot:notifications' for WebSockets!
     """
     db = SessionLocal()
     notifications_created = 0
@@ -101,6 +107,23 @@ def check_expiring_items():
 
             db.add(new_notification)
             notifications_created += 1
+
+            # Publish real-time notification to Redis Pub/Sub for WebSockets
+            try:
+                redis_sync_client.publish(
+                    "pantrypilot:notifications",
+                    json.dumps(
+                        {
+                            "type": "expiry_notification",
+                            "notification_type": n_type,
+                            "user_id": item.user_id,
+                            "message": msg,
+                            "pantry_item_id": item.id,
+                        }
+                    ),
+                )
+            except Exception as pub_err:
+                logger.warning(f"[CELERY REDIS PUBSUB ERROR] Failed to publish notification: {pub_err}")
 
         db.commit()
         print(f"[CELERY WORKER] check_expiring_items executed. Created {notifications_created} new notification(s).")

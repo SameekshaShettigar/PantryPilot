@@ -1,26 +1,80 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import api from "../services/api";
 
 const Navbar = () => {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, token, isAuthenticated, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
 
+  const socketRef = useRef(null);
+
+  // 1. Initial REST fetch for notification history
   useEffect(() => {
     if (isAuthenticated) {
       fetchNotifications();
-      // Poll notifications every 30 seconds
-      const interval = setInterval(fetchNotifications, 30000);
-      return () => clearInterval(interval);
     }
   }, [isAuthenticated]);
+
+  // 2. Real-Time Authenticated WebSocket Connection (Replaces wasteful HTTP Polling!)
+  useEffect(() => {
+    if (!isAuthenticated || !token) return;
+
+    const wsUrl = `ws://127.0.0.1:8000/ws/notifications?token=${encodeURIComponent(token)}`;
+    console.log("[WEBSOCKET CLIENT] Connecting to live notification stream...", wsUrl);
+
+    const ws = new WebSocket(wsUrl);
+    socketRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("[WEBSOCKET CLIENT] Live WebSocket Connection Established! ⚡");
+      setWsConnected(true);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("[WEBSOCKET CLIENT] Real-Time Event Received:", data);
+
+        if (data.type === "expiry_notification") {
+          const newNotif = {
+            id: Date.now(),
+            message: data.message,
+            notification_type: data.notification_type || "warning",
+            is_read: false,
+            created_at: new Date().toISOString(),
+          };
+          setNotifications((prev) => [newNotif, ...prev]);
+          setUnreadCount((prev) => prev + 1);
+        }
+      } catch (err) {
+        console.error("[WEBSOCKET PARSE ERROR]", err);
+      }
+    };
+
+    ws.onerror = (err) => {
+      console.error("[WEBSOCKET CLIENT ERROR]", err);
+      setWsConnected(false);
+    };
+
+    ws.onclose = () => {
+      console.log("[WEBSOCKET CLIENT] Socket Closed.");
+      setWsConnected(false);
+    };
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+        ws.close();
+      }
+    };
+  }, [isAuthenticated, token]);
 
   const fetchNotifications = async () => {
     try {
@@ -31,7 +85,7 @@ const Navbar = () => {
       setNotifications(listRes.data);
       setUnreadCount(countRes.data.unread_count);
     } catch (err) {
-      console.error("Failed to fetch notifications", err);
+      console.error("Failed to fetch notification history", err);
     }
   };
 
@@ -96,16 +150,29 @@ const Navbar = () => {
         </nav>
 
         <div className="nav-user">
-          {/* Expiry Notifications Bell Dropdown */}
+          {/* Real-Time WebSocket Expiry Notifications Bell */}
           <div style={{ position: "relative" }}>
             <button
               onClick={() => setShowNotifications(!showNotifications)}
               data-magnetic
               className="theme-toggle-btn"
-              title="Expiry Notifications"
+              title={wsConnected ? "Real-time WebSocket connected ⚡" : "Connecting..."}
               style={{ position: "relative" }}
             >
               <span>🔔</span>
+              {wsConnected && (
+                <span
+                  style={{
+                    width: "8px",
+                    height: "8px",
+                    backgroundColor: "var(--primary)",
+                    borderRadius: "50%",
+                    display: "inline-block",
+                    marginLeft: "2px",
+                  }}
+                  title="Live WebSocket Connected"
+                />
+              )}
               {unreadCount > 0 && (
                 <span
                   style={{
@@ -130,7 +197,7 @@ const Navbar = () => {
                   position: "absolute",
                   right: 0,
                   top: "120%",
-                  width: "320px",
+                  width: "330px",
                   maxHeight: "380px",
                   overflowY: "auto",
                   zIndex: 200,
@@ -139,7 +206,11 @@ const Navbar = () => {
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-                  <strong style={{ fontSize: "0.95rem" }}>Expiry Notifications 🔔</strong>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                    <strong style={{ fontSize: "0.95rem" }}>Expiry Notifications</strong>
+                    {wsConnected && <span className="badge badge-green" style={{ fontSize: "0.65rem" }}>⚡ Live</span>}
+                  </div>
+
                   {unreadCount > 0 && (
                     <button
                       onClick={handleMarkAllRead}
@@ -156,9 +227,9 @@ const Navbar = () => {
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    {notifications.map((n) => (
+                    {notifications.map((n, idx) => (
                       <div
-                        key={n.id}
+                        key={n.id || idx}
                         onClick={() => !n.is_read && handleMarkAsRead(n.id)}
                         style={{
                           padding: "0.6rem",
