@@ -22,8 +22,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: 'backend/requirements.txt'
 
       - name: Install Backend Python Dependencies
         run: |
@@ -34,7 +32,7 @@ jobs:
 
       - name: Run Backend Pytest Suite
         env:
-          DATABASE_URL: "sqlite:////tmp/pantrypilot_test_ci.db"
+          DATABASE_URL: "sqlite:///file:memdb1?mode=memory&cache=shared&uri=true"
           SECRET_KEY: "test_secret_key_ci_cd_pantrypilot"
           ALGORITHM: "HS256"
           GEMINI_API_KEY: "test_dummy_gemini_key"
