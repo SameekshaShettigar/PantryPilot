@@ -34,7 +34,7 @@ jobs:
 
       - name: Run Backend Pytest Suite
         env:
-          DATABASE_URL: "sqlite:///./test_ci.db"
+          DATABASE_URL: "sqlite:////tmp/pantrypilot_test_ci.db"
           SECRET_KEY: "test_secret_key_ci_cd_pantrypilot"
           ALGORITHM: "HS256"
           GEMINI_API_KEY: "test_dummy_gemini_key"
