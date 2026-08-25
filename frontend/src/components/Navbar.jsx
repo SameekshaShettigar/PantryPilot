@@ -27,7 +27,10 @@ const Navbar = () => {
   useEffect(() => {
     if (!isAuthenticated || !token) return;
 
-    const wsUrl = `ws://127.0.0.1:8000/ws/notifications?token=${encodeURIComponent(token)}`;
+    const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+    const wsProtocol = baseUrl.startsWith("https:") ? "wss:" : "ws:";
+    const host = baseUrl.replace(/^https?:\/\//, "");
+    const wsUrl = `${wsProtocol}//${host}/ws/notifications?token=${encodeURIComponent(token)}`;
     console.log("[WEBSOCKET CLIENT] Connecting to live notification stream...", wsUrl);
 
     const ws = new WebSocket(wsUrl);
