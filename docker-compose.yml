@@ -1,8 +1,10 @@
 services:
 
+  # 1. PostgreSQL Database Service
   postgres:
     image: postgres:16
     container_name: pantrypilot-db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -11,20 +13,15 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - pantrypilot-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d pantrypilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  minio:
-    image: minio/minio
-    container_name: pantrypilot-minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-    - "9010:9000"
-    - "9011:9001"
-    volumes:
-      - minio_data:/data
-
+  # 2. Redis Cache & Message Broker Service
   redis:
     image: redis:7-alpine
     container_name: pantrypilot-redis
@@ -33,8 +30,117 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - pantrypilot-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
+  # 3. MinIO S3 Object Storage Service
+  minio:
+    image: minio/minio
+    container_name: pantrypilot-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9010:9000"
+      - "9011:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - pantrypilot-net
+
+  # 4. FastAPI Backend Application Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pantrypilot-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/pantrypilot
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio:9000
+    ports:
+      - "8000:8000"
+    networks:
+      - pantrypilot-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # 5. Celery Worker Service (Background Expiry Checks)
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pantrypilot-celery-worker
+    restart: unless-stopped
+    command: celery -A app.worker.celery_app worker --loglevel=info
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/pantrypilot
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio:9000
+    networks:
+      - pantrypilot-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # 6. Celery Beat Scheduler Service (Hourly Task Triggers)
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pantrypilot-celery-beat
+    restart: unless-stopped
+    command: celery -A app.worker.celery_app beat --loglevel=info
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/pantrypilot
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio:9000
+    networks:
+      - pantrypilot-net
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # 7. React Frontend Web Application Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pantrypilot-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - pantrypilot-net
+    depends_on:
+      - backend
+
+# Persistent Volume Storage Definitions
 volumes:
   postgres_data:
-  minio_data:
   redis_data:
+  minio_data:
+
+# Internal Private Virtual Network
+networks:
+  pantrypilot-net:
+    driver: bridge
