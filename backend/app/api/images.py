@@ -88,7 +88,7 @@ async def upload_food_image(
     )
 
     try:
-        upload_image(
+        stored_key = upload_image(
             file_data=file_data,
             object_name=object_name,
             content_type=content_type,
@@ -102,7 +102,7 @@ async def upload_food_image(
     image = FoodImage(
         user_id=current_user.id,
         filename=safe_filename,
-        storage_key=object_name,
+        storage_key=stored_key or object_name,
         content_type=content_type,
         status="uploaded",
     )

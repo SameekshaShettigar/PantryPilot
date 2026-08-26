@@ -50,7 +50,7 @@ def upload_image(
 ) -> str:
     """
     Uploads an image to Cloudinary (in production) or MinIO (in local dev).
-    Returns the storage key or secure HTTPS URL.
+    Returns the secure HTTPS CDN URL or storage key.
     """
     if is_cloudinary_enabled():
         import cloudinary
@@ -94,9 +94,18 @@ def download_image(
             url = object_name
         else:
             url = f"https://res.cloudinary.com/{settings.CLOUDINARY_CLOUD_NAME}/image/upload/{object_name}"
-        res = requests.get(url)
-        res.raise_for_status()
-        return res.content
+        
+        try:
+            res = requests.get(url)
+            res.raise_for_status()
+            return res.content
+        except Exception:
+            # Fallback for clean public_id without path
+            clean_name = object_name.split("/")[-1]
+            alt_url = f"https://res.cloudinary.com/{settings.CLOUDINARY_CLOUD_NAME}/image/upload/{clean_name}"
+            res2 = requests.get(alt_url)
+            res2.raise_for_status()
+            return res2.content
     else:
         client = get_minio_client()
         response = client.get_object(
@@ -127,7 +136,12 @@ def delete_image(
             secure=True,
         )
         try:
-            cloudinary.uploader.destroy(object_name)
+            # Extract public_id if full URL
+            if "cloudinary.com" in object_name:
+                pub_id = object_name.split("/upload/")[-1].rsplit(".", 1)[0]
+            else:
+                pub_id = object_name
+            cloudinary.uploader.destroy(pub_id)
         except Exception:
             pass
     else:
