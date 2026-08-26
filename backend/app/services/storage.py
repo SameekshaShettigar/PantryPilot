@@ -62,9 +62,10 @@ def upload_image(
             api_secret=settings.CLOUDINARY_API_SECRET,
             secure=True,
         )
+        clean_public_id = object_name.replace("/", "_")
         res = cloudinary.uploader.upload(
             file_data,
-            public_id=object_name,
+            public_id=clean_public_id,
             overwrite=True,
             resource_type="image",
         )
@@ -93,16 +94,16 @@ def download_image(
         if object_name.startswith("http://") or object_name.startswith("https://"):
             url = object_name
         else:
-            url = f"https://res.cloudinary.com/{settings.CLOUDINARY_CLOUD_NAME}/image/upload/{object_name}"
+            clean_name = object_name.replace("/", "_")
+            url = f"https://res.cloudinary.com/{settings.CLOUDINARY_CLOUD_NAME}/image/upload/{clean_name}"
         
         try:
             res = requests.get(url)
             res.raise_for_status()
             return res.content
         except Exception:
-            # Fallback for clean public_id without path
-            clean_name = object_name.split("/")[-1]
-            alt_url = f"https://res.cloudinary.com/{settings.CLOUDINARY_CLOUD_NAME}/image/upload/{clean_name}"
+            clean_filename = object_name.split("/")[-1]
+            alt_url = f"https://res.cloudinary.com/{settings.CLOUDINARY_CLOUD_NAME}/image/upload/{clean_filename}"
             res2 = requests.get(alt_url)
             res2.raise_for_status()
             return res2.content
@@ -136,11 +137,12 @@ def delete_image(
             secure=True,
         )
         try:
-            # Extract public_id if full URL
             if "cloudinary.com" in object_name:
                 pub_id = object_name.split("/upload/")[-1].rsplit(".", 1)[0]
+                if "/v" in pub_id:
+                    pub_id = pub_id.split("/", 1)[-1]
             else:
-                pub_id = object_name
+                pub_id = object_name.replace("/", "_")
             cloudinary.uploader.destroy(pub_id)
         except Exception:
             pass
