@@ -62,9 +62,13 @@ def upload_image(
             api_secret=settings.CLOUDINARY_API_SECRET,
             secure=True,
         )
+        
+        # Strip trailing file extension so Cloudinary appends the correct single format extension
+        clean_public_id = object_name.rsplit(".", 1)[0] if "." in object_name else object_name
+        
         res = cloudinary.uploader.upload(
             file_data,
-            public_id=object_name,
+            public_id=clean_public_id,
             overwrite=True,
             resource_type="image",
         )
@@ -88,7 +92,6 @@ def download_image(
 ) -> bytes:
     """
     Downloads image raw bytes for Gemini Vision processing.
-    Resolves Cloudinary secure CDN URLs dynamically.
     """
     if is_cloudinary_enabled():
         import cloudinary
@@ -110,11 +113,11 @@ def download_image(
             except Exception:
                 pass
 
-        # 2. Query Cloudinary Resource API for exact secure_url (handles version tags & extensions)
+        # 2. Query Cloudinary Resource API for exact secure_url
         try:
             pub_id = object_name
             if "cloudinary.com" in object_name:
-                pub_id = object_name.split("/upload/")[-1].split("/", 1)[-1]
+                pub_id = object_name.split("/upload/")[-1].split("/", 1)[-1].rsplit(".", 1)[0]
 
             resource_info = cloudinary.api.resource(pub_id)
             secure_url = resource_info.get("secure_url")
@@ -165,7 +168,7 @@ def delete_image(
                 if "/v" in pub_id:
                     pub_id = pub_id.split("/", 1)[-1]
             else:
-                pub_id = object_name
+                pub_id = object_name.rsplit(".", 1)[0] if "." in object_name else object_name
             cloudinary.uploader.destroy(pub_id)
         except Exception:
             pass
