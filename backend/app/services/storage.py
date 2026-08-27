@@ -62,10 +62,9 @@ def upload_image(
             api_secret=settings.CLOUDINARY_API_SECRET,
             secure=True,
         )
-        clean_public_id = object_name.replace("/", "_")
         res = cloudinary.uploader.upload(
             file_data,
-            public_id=clean_public_id,
+            public_id=object_name,
             overwrite=True,
             resource_type="image",
         )
@@ -89,24 +88,48 @@ def download_image(
 ) -> bytes:
     """
     Downloads image raw bytes for Gemini Vision processing.
+    Resolves Cloudinary secure CDN URLs dynamically.
     """
     if is_cloudinary_enabled():
+        import cloudinary
+        import cloudinary.api
+
+        cloudinary.config(
+            cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+            api_key=settings.CLOUDINARY_API_KEY,
+            api_secret=settings.CLOUDINARY_API_SECRET,
+            secure=True,
+        )
+
+        # 1. If object_name is already a valid full HTTPS URL, try fetching directly
         if object_name.startswith("http://") or object_name.startswith("https://"):
-            url = object_name
-        else:
-            clean_name = object_name.replace("/", "_")
-            url = f"https://res.cloudinary.com/{settings.CLOUDINARY_CLOUD_NAME}/image/upload/{clean_name}"
-        
+            try:
+                res = requests.get(object_name)
+                if res.status_code == 200:
+                    return res.content
+            except Exception:
+                pass
+
+        # 2. Query Cloudinary Resource API for exact secure_url (handles version tags & extensions)
         try:
-            res = requests.get(url)
-            res.raise_for_status()
-            return res.content
+            pub_id = object_name
+            if "cloudinary.com" in object_name:
+                pub_id = object_name.split("/upload/")[-1].split("/", 1)[-1]
+
+            resource_info = cloudinary.api.resource(pub_id)
+            secure_url = resource_info.get("secure_url")
+            if secure_url:
+                res = requests.get(secure_url)
+                if res.status_code == 200:
+                    return res.content
         except Exception:
-            clean_filename = object_name.split("/")[-1]
-            alt_url = f"https://res.cloudinary.com/{settings.CLOUDINARY_CLOUD_NAME}/image/upload/{clean_filename}"
-            res2 = requests.get(alt_url)
-            res2.raise_for_status()
-            return res2.content
+            pass
+
+        # 3. Fallback URL construction
+        url = f"https://res.cloudinary.com/{settings.CLOUDINARY_CLOUD_NAME}/image/upload/{object_name}"
+        res = requests.get(url)
+        res.raise_for_status()
+        return res.content
     else:
         client = get_minio_client()
         response = client.get_object(
@@ -142,7 +165,7 @@ def delete_image(
                 if "/v" in pub_id:
                     pub_id = pub_id.split("/", 1)[-1]
             else:
-                pub_id = object_name.replace("/", "_")
+                pub_id = object_name
             cloudinary.uploader.destroy(pub_id)
         except Exception:
             pass
