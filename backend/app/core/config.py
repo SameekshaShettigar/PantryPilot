@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     CLOUDINARY_CLOUD_NAME: str = ""
     CLOUDINARY_API_KEY: str = ""
     CLOUDINARY_API_SECRET: str = ""
+    SUPABASE_URL: str = ""
+    SUPABASE_KEY: str = ""
+    SUPABASE_BUCKET: str = "pantrypilot-images"
     GEMINI_API_KEY: str = ""
     REDIS_URL: str = "redis://localhost:6379"
 
